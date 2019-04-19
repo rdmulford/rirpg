@@ -15,7 +15,7 @@ const (
 	StoneWall Tile = '#'
 	DirtFloor Tile = '.'
 	Door      Tile = '|'
-	Blank     Tile = ' '
+	Blank     Tile = 0
 )
 
 type Level struct {

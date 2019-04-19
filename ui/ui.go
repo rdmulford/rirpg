@@ -5,6 +5,7 @@ import (
 	"github.com/rdmulford/rirpg/game"
 	"github.com/veandco/go-sdl2/sdl"
 	"image/png"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -16,10 +17,10 @@ const (
 
 var renderer *sdl.Renderer
 var textureAtlas *sdl.Texture
-var textureIndex map[game.Tile]sdl.Rect
+var textureIndex map[game.Tile][]sdl.Rect
 
 func loadTextureIndex() {
-	textureIndex = make(map[game.Tile]sdl.Rect)
+	textureIndex = make(map[game.Tile][]sdl.Rect)
 	infile, err := os.Open("ui/assets/tiles/atlas-index.txt")
 	if err != nil {
 		panic(err)
@@ -30,17 +31,32 @@ func loadTextureIndex() {
 		line = strings.TrimSpace(line)
 		tileRune := game.Tile(line[0])
 		xy := line[1:]
-		splitXY := strings.Split(xy, ",")
-		x, err := strconv.ParseInt(strings.TrimSpace(splitXY[0]), 10, 64)
+		splitXYC := strings.Split(xy, ",")
+		x, err := strconv.ParseInt(strings.TrimSpace(splitXYC[0]), 10, 64)
 		if err != nil {
 			panic(err)
 		}
-		y, err := strconv.ParseInt(strings.TrimSpace(splitXY[1]), 10, 64)
+		y, err := strconv.ParseInt(strings.TrimSpace(splitXYC[1]), 10, 64)
 		if err != nil {
 			panic(err)
 		}
-		rect := sdl.Rect{int32(x * 32), int32(y * 32), int32(32), int32(32)}
-		textureIndex[tileRune] = rect
+
+		variationCount, err := strconv.ParseInt(strings.TrimSpace(splitXYC[2]), 10, 64)
+		if err != nil {
+			panic(err)
+		}
+
+		var rects []sdl.Rect
+		for i := int64(0); i < variationCount; i += 1 {
+			rects = append(rects, sdl.Rect{int32(x * 32), int32(y * 32), int32(32), int32(32)})
+			x += 1
+			if x > 62 {
+				x = 0
+				y += 1
+			}
+		}
+
+		textureIndex[tileRune] = rects
 	}
 }
 
@@ -123,11 +139,15 @@ type UI struct {
 }
 
 func (ui *UI) Draw(level *game.Level) {
+	rand.Seed(1)
 	for y, row := range level.Map {
 		for x, tile := range row {
-			srcRect := textureIndex[tile]
-			dstRect := sdl.Rect{int32(x * 32), int32(y * 32), int32(32), int32(32)}
-			renderer.Copy(textureAtlas, &srcRect, &dstRect)
+			if tile != game.Blank {
+				srcRects := textureIndex[tile]
+				srcRect := srcRects[rand.Intn(len(srcRects))]
+				dstRect := sdl.Rect{int32(x * 32), int32(y * 32), int32(32), int32(32)}
+				renderer.Copy(textureAtlas, &srcRect, &dstRect)
+			}
 		}
 	}
 	renderer.Present()
