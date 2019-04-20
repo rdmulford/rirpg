@@ -1,14 +1,16 @@
+// Riley Mulford April 2019
 package ui
 
 import (
 	"bufio"
-	"github.com/rdmulford/rirpg/game"
-	"github.com/veandco/go-sdl2/sdl"
 	"image/png"
 	"math/rand"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/rdmulford/rirpg/game"
+	"github.com/veandco/go-sdl2/sdl"
 )
 
 const (
@@ -18,7 +20,10 @@ const (
 var renderer *sdl.Renderer
 var textureAtlas *sdl.Texture
 var textureIndex map[game.Tile][]sdl.Rect
+var prevKeyboardState []uint8
+var keyboardState []uint8
 
+// Parse atlas-index.txt file to obtain coordinates for each defined tile
 func loadTextureIndex() {
 	textureIndex = make(map[game.Tile][]sdl.Rect)
 	infile, err := os.Open("ui/assets/tiles/atlas-index.txt")
@@ -41,14 +46,15 @@ func loadTextureIndex() {
 			panic(err)
 		}
 
+		// Account for n number of variations of each tile in order to randomly use variations
 		variationCount, err := strconv.ParseInt(strings.TrimSpace(splitXYC[2]), 10, 64)
 		if err != nil {
 			panic(err)
 		}
-
 		var rects []sdl.Rect
 		for i := int64(0); i < variationCount; i += 1 {
 			rects = append(rects, sdl.Rect{int32(x * 32), int32(y * 32), int32(32), int32(32)})
+			// atlas wraps around
 			x += 1
 			if x > 62 {
 				x = 0
@@ -60,6 +66,7 @@ func loadTextureIndex() {
 	}
 }
 
+// Create sdl texture from given image
 func imgFileToTexture(filename string) *sdl.Texture {
 	infile, err := os.Open(filename)
 	if err != nil {
@@ -99,6 +106,7 @@ func imgFileToTexture(filename string) *sdl.Texture {
 	return tex
 }
 
+// Helper function to imgFiletoTexture
 func pixelsToTexture(renderer *sdl.Renderer, pixels []byte, w, h int) *sdl.Texture {
 	tex, err := renderer.CreateTexture(sdl.PIXELFORMAT_ABGR8888, sdl.TEXTUREACCESS_STREAMING, int32(w), int32(h))
 	if err != nil {
@@ -133,12 +141,19 @@ func init() {
 
 	textureAtlas = imgFileToTexture("ui/assets/tiles/tiles.png")
 	loadTextureIndex()
+
+	keyboardState = sdl.GetKeyboardState()
+	prevKeyboardState = make([]uint8, len(keyboardState))
+	for i, v := range keyboardState {
+		prevKeyboardState[i] = v
+	}
 }
 
 type UI struct {
 }
 
 func (ui *UI) Draw(level *game.Level) {
+	renderer.Clear()
 	rand.Seed(1)
 	for y, row := range level.Map {
 		for x, tile := range row {
@@ -150,7 +165,37 @@ func (ui *UI) Draw(level *game.Level) {
 			}
 		}
 	}
+	renderer.Copy(textureAtlas, &sdl.Rect{int32(21 * 32), int32(59 * 32), 32, 32}, &sdl.Rect{int32(level.Player.X * 32), int32(level.Player.Y * 32), 32, 32})
 	renderer.Present()
+}
+
+func (ui *UI) GetInput() *game.Input {
 	for {
+		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
+			// check event type and react
+			switch event.(type) {
+			case *sdl.QuitEvent:
+				return &game.Input{Typ: game.Quit}
+			}
+		}
+
+		var input game.Input
+		if keyboardState[sdl.SCANCODE_UP] == 0 && prevKeyboardState[sdl.SCANCODE_UP] != 0 {
+			input.Typ = game.Up
+		} else if keyboardState[sdl.SCANCODE_DOWN] == 0 && prevKeyboardState[sdl.SCANCODE_DOWN] != 0 {
+			input.Typ = game.Down
+		} else if keyboardState[sdl.SCANCODE_LEFT] == 0 && prevKeyboardState[sdl.SCANCODE_LEFT] != 0 {
+			input.Typ = game.Left
+		} else if keyboardState[sdl.SCANCODE_RIGHT] == 0 && prevKeyboardState[sdl.SCANCODE_RIGHT] != 0 {
+			input.Typ = game.Right
+		}
+
+		for i, v := range keyboardState {
+			prevKeyboardState[i] = v
+		}
+
+		if input.Typ != game.None {
+			return &input
+		}
 	}
 }
