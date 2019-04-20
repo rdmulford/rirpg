@@ -20,8 +20,12 @@ const (
 var renderer *sdl.Renderer
 var textureAtlas *sdl.Texture
 var textureIndex map[game.Tile][]sdl.Rect
+
 var prevKeyboardState []uint8
 var keyboardState []uint8
+
+var centerX int
+var centerY int
 
 // Parse atlas-index.txt file to obtain coordinates for each defined tile
 func loadTextureIndex() {
@@ -147,12 +151,33 @@ func init() {
 	for i, v := range keyboardState {
 		prevKeyboardState[i] = v
 	}
+
+	centerX = -1
+	centerY = -1
 }
 
 type UI struct {
 }
 
 func (ui *UI) Draw(level *game.Level) {
+	// calculate scrolling
+	if centerX == -1 && centerY == -1 {
+		centerX = level.Player.X
+		centerY = level.Player.Y
+	}
+	limit := 5
+	if level.Player.X > centerX+limit {
+		centerX++
+	} else if level.Player.X < centerX-limit {
+		centerX--
+	} else if level.Player.Y > centerY+limit {
+		centerY++
+	} else if level.Player.Y < centerY-limit {
+		centerY--
+	}
+	offsetX := int32((winWidth / 2) - centerX*32)
+	offsetY := int32((winHeight / 2) - centerY*32)
+
 	renderer.Clear()
 	rand.Seed(1)
 	for y, row := range level.Map {
@@ -160,12 +185,12 @@ func (ui *UI) Draw(level *game.Level) {
 			if tile != game.Blank {
 				srcRects := textureIndex[tile]
 				srcRect := srcRects[rand.Intn(len(srcRects))]
-				dstRect := sdl.Rect{int32(x * 32), int32(y * 32), int32(32), int32(32)}
+				dstRect := sdl.Rect{int32(x*32) + offsetX, int32(y*32) + offsetY, int32(32), int32(32)}
 				renderer.Copy(textureAtlas, &srcRect, &dstRect)
 			}
 		}
 	}
-	renderer.Copy(textureAtlas, &sdl.Rect{int32(21 * 32), int32(59 * 32), 32, 32}, &sdl.Rect{int32(level.Player.X * 32), int32(level.Player.Y * 32), 32, 32})
+	renderer.Copy(textureAtlas, &sdl.Rect{int32(21 * 32), int32(59 * 32), 32, 32}, &sdl.Rect{int32(level.Player.X)*32 + offsetX, int32(level.Player.Y)*32 + offsetY, 32, 32})
 	renderer.Present()
 }
 
