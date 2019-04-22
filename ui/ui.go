@@ -27,7 +27,7 @@ var keyboardState []uint8
 var centerX int
 var centerY int
 
-// Parse atlas-index.txt file to obtain coordinates for each defined tile
+// loadTextureIndex - Parse atlas-index.txt file to obtain coordinates for each defined tile
 func loadTextureIndex() {
 	textureIndex = make(map[game.Tile][]sdl.Rect)
 	infile, err := os.Open("ui/assets/tiles/atlas-index.txt")
@@ -70,7 +70,7 @@ func loadTextureIndex() {
 	}
 }
 
-// Create sdl texture from given image
+// imgFileToTexture - Create sdl texture from given image
 func imgFileToTexture(filename string) *sdl.Texture {
 	infile, err := os.Open(filename)
 	if err != nil {
@@ -110,7 +110,7 @@ func imgFileToTexture(filename string) *sdl.Texture {
 	return tex
 }
 
-// Helper function to imgFiletoTexture
+// pixelsToTexture - Helper function to imgFiletoTexture
 func pixelsToTexture(renderer *sdl.Renderer, pixels []byte, w, h int) *sdl.Texture {
 	tex, err := renderer.CreateTexture(sdl.PIXELFORMAT_ABGR8888, sdl.TEXTUREACCESS_STREAMING, int32(w), int32(h))
 	if err != nil {
@@ -120,6 +120,7 @@ func pixelsToTexture(renderer *sdl.Renderer, pixels []byte, w, h int) *sdl.Textu
 	return tex
 }
 
+// init - initialize sdl and various other
 func init() {
 	sdl.LogSetAllPriority(sdl.LOG_PRIORITY_VERBOSE)
 
@@ -159,6 +160,7 @@ func init() {
 type UI struct {
 }
 
+// Draw - Given level information, draw all tiles into the window
 func (ui *UI) Draw(level *game.Level) {
 	// calculate scrolling
 	if centerX == -1 && centerY == -1 {
@@ -186,6 +188,16 @@ func (ui *UI) Draw(level *game.Level) {
 				srcRects := textureIndex[tile]
 				srcRect := srcRects[rand.Intn(len(srcRects))]
 				dstRect := sdl.Rect{int32(x*32) + offsetX, int32(y*32) + offsetY, int32(32), int32(32)}
+
+				// debug map drawing
+				pos := game.Pos{x, y}
+				if level.Debug[pos] {
+					textureAtlas.SetColorMod(128, 0, 0)
+				} else {
+					// no change to texture
+					textureAtlas.SetColorMod(255, 255, 255)
+				}
+
 				renderer.Copy(textureAtlas, &srcRect, &dstRect)
 			}
 		}
@@ -194,6 +206,7 @@ func (ui *UI) Draw(level *game.Level) {
 	renderer.Present()
 }
 
+// GetInput - poll for user key presses and return the found input
 func (ui *UI) GetInput() *game.Input {
 	for {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
@@ -213,6 +226,8 @@ func (ui *UI) GetInput() *game.Input {
 			input.Typ = game.Left
 		} else if keyboardState[sdl.SCANCODE_RIGHT] == 0 && prevKeyboardState[sdl.SCANCODE_RIGHT] != 0 {
 			input.Typ = game.Right
+		} else if keyboardState[sdl.SCANCODE_S] == 0 && prevKeyboardState[sdl.SCANCODE_S] != 0 {
+			input.Typ = game.Search
 		}
 
 		for i, v := range keyboardState {
