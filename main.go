@@ -3,10 +3,12 @@ package main
 
 import (
 	"github.com/rdmulford/rirpg/game"
-	"github.com/rdmulford/rirpg/ui"
+	"github.com/rdmulford/rirpg/ui2d"
 )
 
 func main() {
-	gameUI := &ui.UI{}
-	game.Run(gameUI)
+	game := game.NewGame(1, "game/maps/level1.map")
+	go func() { game.Run() }()
+	ui := ui2d.NewUI(game.InputChan, game.LevelChans[0])
+	ui.Run()
 }
