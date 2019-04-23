@@ -45,6 +45,7 @@ type Tile rune
 const (
 	StoneWall  Tile = '#'
 	DirtFloor  Tile = '.'
+	Grass      Tile = ','
 	ClosedDoor Tile = '|'
 	OpenDoor   Tile = '/'
 	Blank      Tile = 0
@@ -110,6 +111,8 @@ func loadLevelFromFile(filename string) *Level {
 				t = OpenDoor
 			case '.':
 				t = DirtFloor
+			case ',':
+				t = Grass
 			case 'P':
 				level.Player.Y = y
 				level.Player.X = x
@@ -131,6 +134,9 @@ func loadLevelFromFile(filename string) *Level {
 						switch searchTile {
 						case DirtFloor:
 							level.Map[y][x] = DirtFloor
+							break SearchLoop
+						case Grass:
+							level.Map[y][x] = Grass
 							break SearchLoop
 						}
 					}
