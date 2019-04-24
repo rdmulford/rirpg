@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	worldgen.GenerateNewLevel(50, 50, 100)
+	worldgen.GenerateNewLevel(50, 50, 10)
 	game := game.NewGame(1, "game/maps/level1.map")
 	go func() { game.Run() }()
 	ui := ui2d.NewUI(game.InputChan, game.LevelChans[0])

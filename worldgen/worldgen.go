@@ -27,13 +27,13 @@ func GenerateNewLevel(xSize, ySize int, seed int64) {
 				genMap[x][y] = '#'
 				continue
 			}
-			if val < 0.0 {
-				genMap[x][y] = '.'
-				dirtTiles = append(dirtTiles, pos{x, y})
-			} else if val >= 0.0 && val < 0.3 {
+			if val < -0.3 {
+				genMap[x][y] = '~'
+			} else if val >= -0.3 && val < 0.3 {
 				genMap[x][y] = ','
 			} else if val >= 0.3 {
-				genMap[x][y] = '~'
+				genMap[x][y] = '.'
+				dirtTiles = append(dirtTiles, pos{x, y})
 			}
 		}
 	}
