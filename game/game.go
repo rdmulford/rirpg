@@ -65,9 +65,10 @@ type Player struct {
 }
 
 type Level struct {
-	Map    [][]Tile
-	Player Player
-	Debug  map[Pos]bool
+	Map      [][]Tile
+	Player   Player
+	Monsters map[Pos]*Monster
+	Debug    map[Pos]bool
 }
 
 // loadLevelFromFile - reads in and parses a level file
@@ -92,6 +93,8 @@ func loadLevelFromFile(filename string) *Level {
 	}
 	level := &Level{}
 	level.Map = make([][]Tile, len(levelLines))
+	level.Monsters = make(map[Pos]*Monster)
+
 	for i := range level.Map {
 		level.Map[i] = make([]Tile, longestRow) // refactor to jagged array?
 	}
@@ -113,9 +116,15 @@ func loadLevelFromFile(filename string) *Level {
 				t = DirtFloor
 			case ',':
 				t = Grass
-			case 'P':
+			case '@':
 				level.Player.Y = y
 				level.Player.X = x
+				t = Pending
+			case 'R':
+				level.Monsters[Pos{x, y}] = NewRat()
+				t = Pending
+			case 'S':
+				level.Monsters[Pos{x, y}] = NewSpider()
 				t = Pending
 			default:
 				panic("Invalid Character in Map")
@@ -124,6 +133,7 @@ func loadLevelFromFile(filename string) *Level {
 		}
 	}
 
+	// TODO we should use bfs to find first floor tile
 	for y, row := range level.Map {
 		for x, tile := range row {
 			if tile == Pending {
