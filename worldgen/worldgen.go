@@ -7,14 +7,19 @@ import (
 	"os"
 )
 
+type pos struct {
+	x, y int
+}
+
 // utilize perlin noise to generate new level file at game/maps/level1.map
 func GenerateNewLevel(xSize, ySize int, seed int64) {
 	genMap := make([][]rune, ySize)
 	for i := range genMap {
 		genMap[i] = make([]rune, xSize)
 	}
-	p := NewPerlin(2, 2, 3, seed)
+	dirtTiles := make([]pos, 0)
 
+	p := NewPerlin(2, 2, 3, seed)
 	for y := 0; y < ySize; y++ {
 		for x := 0; x < xSize; x++ {
 			val := p.Noise2D(float64(x)/10, float64(y)/10)
@@ -24,8 +29,11 @@ func GenerateNewLevel(xSize, ySize int, seed int64) {
 			}
 			if val < 0.0 {
 				genMap[x][y] = '.'
-			} else {
+				dirtTiles = append(dirtTiles, pos{x, y})
+			} else if val >= 0.0 && val < 0.3 {
 				genMap[x][y] = ','
+			} else if val >= 0.3 {
+				genMap[x][y] = '~'
 			}
 		}
 	}
@@ -40,8 +48,18 @@ func GenerateNewLevel(xSize, ySize int, seed int64) {
 		genMap[r.Intn(xSize-2)][r.Intn(ySize-2)] = 'S'
 	}
 
-	// place the player, gonna need to make more complicated later
-	genMap[25][25] = '@'
+	// place trees
+	for i := 0; i < 200; i++ {
+		rX := r.Intn(xSize - 2)
+		rY := r.Intn(ySize - 2)
+		if genMap[rX][rY] == ',' {
+			genMap[rX][rY] = '^'
+		}
+	}
+
+	// place player
+	playerPos := dirtTiles[rand.Intn(len(dirtTiles))]
+	genMap[playerPos.x][playerPos.y] = '@'
 
 	err := os.Remove("game/maps/level1.map")
 	if err != nil {

@@ -49,6 +49,8 @@ const (
 	ClosedDoor Tile = '|'
 	OpenDoor   Tile = '/'
 	Blank      Tile = 0
+	Tree       Tile = '^'
+	Water      Tile = '~'
 	Pending    Tile = -1
 )
 
@@ -89,7 +91,7 @@ func loadLevelFromFile(filename string) *Level {
 		if len(levelLines[index]) > longestRow {
 			longestRow = len(levelLines[index])
 		}
-		index += 1
+		index++
 	}
 	level := &Level{}
 	level.Map = make([][]Tile, len(levelLines))
@@ -99,7 +101,7 @@ func loadLevelFromFile(filename string) *Level {
 		level.Map[i] = make([]Tile, longestRow) // refactor to jagged array?
 	}
 
-	for y := 0; y < len(level.Map); y += 1 {
+	for y := 0; y < len(level.Map); y++ {
 		line := levelLines[y]
 		for x, c := range line {
 			var t Tile
@@ -116,6 +118,10 @@ func loadLevelFromFile(filename string) *Level {
 				t = DirtFloor
 			case ',':
 				t = Grass
+			case '^':
+				t = Tree
+			case '~':
+				t = Water
 			case '@':
 				level.Player.Y = y
 				level.Player.X = x
@@ -138,8 +144,8 @@ func loadLevelFromFile(filename string) *Level {
 		for x, tile := range row {
 			if tile == Pending {
 			SearchLoop:
-				for searchX := x - 1; searchX < x+1; searchX += 1 {
-					for searchY := y - 1; searchY < y+1; searchY += 1 {
+				for searchX := x - 1; searchX < x+1; searchX++ {
+					for searchY := y - 1; searchY < y+1; searchY++ {
 						searchTile := level.Map[searchY][searchX]
 						switch searchTile {
 						case DirtFloor:
@@ -163,7 +169,7 @@ func loadLevelFromFile(filename string) *Level {
 func canWalk(level *Level, pos Pos) bool {
 	t := level.Map[pos.Y][pos.X]
 	switch t {
-	case StoneWall, ClosedDoor, Blank:
+	case StoneWall, ClosedDoor, Tree, Blank:
 		return false
 	default:
 		return true

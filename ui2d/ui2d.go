@@ -104,13 +104,13 @@ func (ui *ui) loadTextureIndex() {
 			panic(err)
 		}
 		var rects []sdl.Rect
-		for i := int64(0); i < variationCount; i += 1 {
+		for i := int64(0); i < variationCount; i++ {
 			rects = append(rects, sdl.Rect{int32(x * 32), int32(y * 32), int32(32), int32(32)})
 			// atlas wraps around
-			x += 1
+			x++
 			if x > 62 {
 				x = 0
-				y += 1
+				y++
 			}
 		}
 
@@ -137,17 +137,17 @@ func (ui *ui) imgFileToTexture(filename string) *sdl.Texture {
 
 	pixels := make([]byte, w*h*4)
 	bIndex := 0
-	for y := 0; y < h; y += 1 {
-		for x := 0; x < w; x += 1 {
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
 			r, g, b, a := img.At(x, y).RGBA()
 			pixels[bIndex] = byte(r / 256)
-			bIndex += 1
+			bIndex++
 			pixels[bIndex] = byte(g / 256)
-			bIndex += 1
+			bIndex++
 			pixels[bIndex] = byte(b / 256)
-			bIndex += 1
+			bIndex++
 			pixels[bIndex] = byte(a / 256)
-			bIndex += 1
+			bIndex++
 		}
 	}
 	tex, err := ui.renderer.CreateTexture(sdl.PIXELFORMAT_ABGR8888, sdl.TEXTUREACCESS_STREAMING, int32(w), int32(h))
