@@ -190,7 +190,7 @@ func (ui *ui) Draw(level *game.Level) {
 		for x, tile := range row {
 			if tile != game.Blank {
 				// draw grass under trees
-				// TODO refactor
+				// TODO refactor into layers?
 				if tile == game.Tree {
 					tile = game.Grass
 				}
@@ -212,6 +212,7 @@ func (ui *ui) Draw(level *game.Level) {
 		}
 	}
 
+	// draw trees
 	for pos, tree := range level.Trees {
 		treeSrcRect := ui.textureIndex[tree][0]
 		ui.renderer.Copy(ui.textureAtlas, &treeSrcRect, &sdl.Rect{int32(pos.X)*32 + offsetX, int32(pos.Y)*32 + offsetY, 32, 32})

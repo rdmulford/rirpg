@@ -23,6 +23,8 @@ func NewRat(p Pos) *Monster {
 	monster.Strength = 5
 	monster.Speed = 2.0
 	monster.ActionPoints = 0.0
+	monster.MaxBreath = 6
+	monster.CurrentBreath = monster.MaxBreath
 	return monster
 }
 
@@ -36,6 +38,8 @@ func NewSpider(p Pos) *Monster {
 	monster.Strength = 10
 	monster.Speed = 1.0
 	monster.ActionPoints = 0.0
+	monster.MaxBreath = 3
+	monster.CurrentBreath = monster.MaxBreath
 	return monster
 }
 
@@ -68,5 +72,15 @@ func (m *Monster) Move(to Pos, level *Level) {
 				os.Exit(1)
 			}
 		}
+	}
+
+	// check if monster is drowning
+	if level.Map[m.Pos.Y][m.Pos.X] == '~' {
+		m.CurrentBreath -= 1
+		if m.CurrentBreath < 0 {
+			delete(level.Monsters, m.Pos)
+		}
+	} else {
+		m.CurrentBreath = m.MaxBreath
 	}
 }

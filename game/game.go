@@ -69,10 +69,12 @@ type Entity struct {
 
 type Character struct {
 	Entity
-	Hitpoints    int
-	Strength     int
-	Speed        float64
-	ActionPoints float64
+	Hitpoints     int
+	Strength      int
+	Speed         float64
+	MaxBreath     int
+	CurrentBreath int
+	ActionPoints  float64
 }
 
 type Player struct {
@@ -131,6 +133,8 @@ func loadLevelFromFile(filename string) *Level {
 	level.Player.Symbol = '@'
 	level.Player.Speed = 1.0
 	level.Player.ActionPoints = 0
+	level.Player.MaxBreath = 10
+	level.Player.CurrentBreath = level.Player.MaxBreath
 
 	level.Map = make([][]Tile, len(levelLines))
 	level.Monsters = make(map[Pos]*Monster)
@@ -202,7 +206,7 @@ func canWalk(level *Level, pos Pos) bool {
 	if inRange(level, pos) {
 		t := level.Map[pos.Y][pos.X]
 		switch t {
-		case StoneWall, ClosedDoor, Tree, Water, Blank:
+		case StoneWall, ClosedDoor, Tree, Blank:
 			return false
 		default:
 			return true
@@ -236,36 +240,48 @@ func (player *Player) Move(to Pos, level *Level) {
 			os.Exit(1)
 		}
 	}
+
+	// Check if player is drowning
+	if level.Map[player.Pos.Y][player.Pos.X] == '~' {
+		fmt.Println(player.CurrentBreath)
+		player.CurrentBreath -= 1
+		if player.CurrentBreath < 0 {
+			fmt.Println("Player died")
+			sdl.Quit()
+			os.Exit(1)
+		}
+	} else {
+		player.CurrentBreath = player.MaxBreath
+	}
 }
 
 // handleInput - takes an input and performs a game action
 func (game *Game) handleInput(input *Input) {
 	level := game.Level
-	p := level.Player
 	switch input.Typ {
 	case Up:
-		newPos := Pos{p.X, p.Y - 1}
+		newPos := Pos{level.Player.X, level.Player.Y - 1}
 		if canWalk(level, newPos) {
 			level.Player.Move(newPos, level)
 		} else {
 			checkDoor(level, newPos)
 		}
 	case Down:
-		newPos := Pos{p.X, p.Y + 1}
+		newPos := Pos{level.Player.X, level.Player.Y + 1}
 		if canWalk(level, newPos) {
 			level.Player.Move(newPos, level)
 		} else {
 			checkDoor(level, newPos)
 		}
 	case Left:
-		newPos := Pos{p.X - 1, p.Y}
+		newPos := Pos{level.Player.X - 1, level.Player.Y}
 		if canWalk(level, newPos) {
 			level.Player.Move(newPos, level)
 		} else {
 			checkDoor(level, newPos)
 		}
 	case Right:
-		newPos := Pos{p.X + 1, p.Y}
+		newPos := Pos{level.Player.X + 1, level.Player.Y}
 		if canWalk(level, newPos) {
 			level.Player.Move(newPos, level)
 		} else {
