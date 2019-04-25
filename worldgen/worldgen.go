@@ -41,10 +41,10 @@ func GenerateNewLevel(xSize, ySize int, seed int64) {
 	// place monsters, overwriting old tiles (that could be bad?)
 	r := rand.New(rand.NewSource(1))
 	r.Seed(seed)
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 1; i++ {
 		genMap[r.Intn(xSize-2)][r.Intn(ySize-2)] = 'R'
 	}
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 1; i++ {
 		genMap[r.Intn(xSize-2)][r.Intn(ySize-2)] = 'S'
 	}
 

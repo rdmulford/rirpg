@@ -3,8 +3,11 @@ package game
 
 import (
 	"bufio"
+	"fmt"
 	"math"
 	"os"
+
+	"github.com/veandco/go-sdl2/sdl"
 )
 
 type Game struct {
@@ -60,17 +63,40 @@ type Pos struct {
 
 type Entity struct {
 	Pos
+	Name   string
+	Symbol rune
+}
+
+type Character struct {
+	Entity
+	Hitpoints    int
+	Strength     int
+	Speed        float64
+	ActionPoints float64
 }
 
 type Player struct {
-	Entity
+	Character
 }
 
 type Level struct {
 	Map      [][]Tile
-	Player   Player
+	Player   *Player
 	Monsters map[Pos]*Monster
 	Debug    map[Pos]bool
+}
+
+func Attack(c1, c2 *Character) {
+	c1.ActionPoints -= 1
+	c2.Hitpoints -= c1.Strength
+	// strike back
+	/*
+		if c2.Hitpoints > 0 {
+			c2.ActionPoints -= 1
+			c1.Hitpoints -= c2.Strength
+			fmt.Printf("%s(%d) Attacks %s(%d)\n", c2.Name, c2.Hitpoints, c1.Name, c1.Hitpoints)
+		}
+	*/
 }
 
 // loadLevelFromFile - reads in and parses a level file
@@ -94,6 +120,16 @@ func loadLevelFromFile(filename string) *Level {
 		index++
 	}
 	level := &Level{}
+
+	// TODO where we should init player?
+	level.Player = &Player{}
+	level.Player.Strength = 20
+	level.Player.Hitpoints = 100
+	level.Player.Name = "Riley"
+	level.Player.Symbol = '@'
+	level.Player.Speed = 1.0
+	level.Player.ActionPoints = 0
+
 	level.Map = make([][]Tile, len(levelLines))
 	level.Monsters = make(map[Pos]*Monster)
 
@@ -180,9 +216,21 @@ func checkDoor(level *Level, pos Pos) {
 }
 
 func (player *Player) Move(to Pos, level *Level) {
-	_, exists := level.Monsters[to]
+	monster, exists := level.Monsters[to]
 	if !exists {
 		player.Pos = to
+	} else {
+		Attack(&level.Player.Character, &monster.Character)
+		// monster died
+		if monster.Hitpoints <= 0 {
+			delete(level.Monsters, monster.Pos)
+		}
+		// player died
+		if level.Player.Hitpoints <= 0 {
+			fmt.Println("Player died")
+			sdl.Quit()
+			os.Exit(1)
+		}
 	}
 }
 
@@ -257,6 +305,34 @@ func getNeighbors(level *Level, pos Pos) []Pos {
 	}
 
 	return neighbors
+}
+
+func (pos *Pos) IsNextTo(tile Tile, level *Level) bool {
+	left := Pos{pos.X - 1, pos.Y}
+	right := Pos{pos.X + 1, pos.Y}
+	up := Pos{pos.X, pos.Y - 1}
+	down := Pos{pos.X, pos.Y + 1}
+	if level.Map[left.X][left.Y] == tile ||
+		level.Map[right.X][right.Y] == tile ||
+		level.Map[up.X][up.Y] == tile ||
+		level.Map[down.X][down.Y] == tile {
+		return true
+	}
+	return false
+}
+
+func (pos *Pos) IsNextToPlayer(level *Level) bool {
+	left := Pos{pos.X - 1, pos.Y}
+	right := Pos{pos.X + 1, pos.Y}
+	up := Pos{pos.X, pos.Y - 1}
+	down := Pos{pos.X, pos.Y + 1}
+	if left == level.Player.Pos ||
+		right == level.Player.Pos ||
+		up == level.Player.Pos ||
+		down == level.Player.Pos {
+		return true
+	}
+	return false
 }
 
 // bfs - classic breadth first search implementation
