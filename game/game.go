@@ -83,12 +83,14 @@ type Level struct {
 	Map      [][]Tile
 	Player   *Player
 	Monsters map[Pos]*Monster
+	Trees    map[Pos]Tile
 	Debug    map[Pos]bool
 }
 
 func Attack(c1, c2 *Character) {
 	c1.ActionPoints -= 1
 	c2.Hitpoints -= c1.Strength
+	fmt.Printf("%s(%d) Attacks %s(%d)\n", c1.Name, c1.Hitpoints, c2.Name, c2.Hitpoints)
 	// strike back
 	/*
 		if c2.Hitpoints > 0 {
@@ -132,6 +134,7 @@ func loadLevelFromFile(filename string) *Level {
 
 	level.Map = make([][]Tile, len(levelLines))
 	level.Monsters = make(map[Pos]*Monster)
+	level.Trees = make(map[Pos]Tile)
 
 	for i := range level.Map {
 		level.Map[i] = make([]Tile, longestRow) // refactor to jagged array?
@@ -156,6 +159,7 @@ func loadLevelFromFile(filename string) *Level {
 				t = Grass
 			case '^':
 				t = Tree
+				level.Trees[Pos{x, y}] = t
 			case '~':
 				t = Water
 			case '@':
@@ -198,7 +202,7 @@ func canWalk(level *Level, pos Pos) bool {
 	if inRange(level, pos) {
 		t := level.Map[pos.Y][pos.X]
 		switch t {
-		case StoneWall, ClosedDoor, Tree, Blank:
+		case StoneWall, ClosedDoor, Tree, Water, Blank:
 			return false
 		default:
 			return true

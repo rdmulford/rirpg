@@ -189,6 +189,11 @@ func (ui *ui) Draw(level *game.Level) {
 	for y, row := range level.Map {
 		for x, tile := range row {
 			if tile != game.Blank {
+				// draw grass under trees
+				// TODO refactor
+				if tile == game.Tree {
+					tile = game.Grass
+				}
 				srcRects := ui.textureIndex[tile]
 				srcRect := srcRects[ui.r.Intn(len(srcRects))]
 				dstRect := sdl.Rect{int32(x*32) + offsetX, int32(y*32) + offsetY, int32(32), int32(32)}
@@ -205,6 +210,11 @@ func (ui *ui) Draw(level *game.Level) {
 				ui.renderer.Copy(ui.textureAtlas, &srcRect, &dstRect)
 			}
 		}
+	}
+
+	for pos, tree := range level.Trees {
+		treeSrcRect := ui.textureIndex[tree][0]
+		ui.renderer.Copy(ui.textureAtlas, &treeSrcRect, &sdl.Rect{int32(pos.X)*32 + offsetX, int32(pos.Y)*32 + offsetY, 32, 32})
 	}
 
 	// draw monsters
