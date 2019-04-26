@@ -26,8 +26,10 @@ func GenerateNewLevel(xSize, ySize int, seed int64) {
 				genMap[x][y] = game.Tile('#')
 				continue
 			}
-			if val < -0.3 {
+			if val < -0.4 {
 				genMap[x][y] = game.Tile('~')
+			} else if val >= -0.4 && val < -0.3 {
+				genMap[x][y] = game.Tile('$')
 			} else if val >= -0.3 && val < 0.3 {
 				genMap[x][y] = game.Tile(',')
 				openTiles = append(openTiles, game.Pos{x, y})

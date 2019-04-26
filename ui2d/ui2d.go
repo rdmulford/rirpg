@@ -11,6 +11,7 @@ import (
 
 	"github.com/rdmulford/rirpg/game"
 	"github.com/veandco/go-sdl2/sdl"
+	"github.com/veandco/go-sdl2/ttf"
 )
 
 type ui struct {
@@ -27,12 +28,23 @@ type ui struct {
 	r                 *rand.Rand
 	levelChan         chan *game.Level
 	inputChan         chan *game.Input
+	fontSmall         *ttf.Font
+	fontMedium        *ttf.Font
+	fontLarge         *ttf.Font
+	str2TexSmall      map[string]*sdl.Texture
+	str2TexMedium     map[string]*sdl.Texture
+	str2TexLarge      map[string]*sdl.Texture
 }
 
 // init - initialize sdl
 func init() {
 	// Initialize SDL
 	err := sdl.Init(sdl.INIT_EVERYTHING)
+	if err != nil {
+		panic(err)
+	}
+
+	err = ttf.Init()
 	if err != nil {
 		panic(err)
 	}
@@ -43,8 +55,11 @@ func NewUI(inputChan chan *game.Input, levelChan chan *game.Level) *ui {
 	ui.inputChan = inputChan
 	ui.levelChan = levelChan
 	ui.r = rand.New(rand.NewSource(1))
-	ui.winHeight = 720
-	ui.winWidth = 1280
+	ui.winHeight = 1080
+	ui.winWidth = 1920
+	ui.str2TexSmall = make(map[string]*sdl.Texture)
+	ui.str2TexMedium = make(map[string]*sdl.Texture)
+	ui.str2TexLarge = make(map[string]*sdl.Texture)
 
 	// Initialize window
 	window, err := sdl.CreateWindow("rirpg", 200, 200, int32(ui.winWidth), int32(ui.winHeight), sdl.WINDOW_SHOWN)
@@ -72,7 +87,75 @@ func NewUI(inputChan chan *game.Input, levelChan chan *game.Level) *ui {
 
 	ui.centerX = -1
 	ui.centerY = -1
+
+	// Set up fonts
+	ui.fontSmall, err = ttf.OpenFont("ui2d/assets/fonts/gothic.ttf", 24)
+	if err != nil {
+		panic(err)
+	}
+	ui.fontMedium, err = ttf.OpenFont("ui2d/assets/fonts/gothic.ttf", 32)
+	if err != nil {
+		panic(err)
+	}
+	ui.fontLarge, err = ttf.OpenFont("ui2d/assets/fonts/gothic.ttf", 48)
+	if err != nil {
+		panic(err)
+	}
+
 	return ui
+}
+
+type FontSize int
+
+const (
+	FontSmall FontSize = iota
+	FontMedium
+	FontLarge
+)
+
+// TODO remove textures from string to texture caches
+// this funciton is really expensive, call as little times as possible
+func (ui *ui) stringToTexture(s string, color sdl.Color, size FontSize) *sdl.Texture {
+	var font *ttf.Font
+	switch size {
+	case FontSmall:
+		font = ui.fontSmall
+		tex, exists := ui.str2TexSmall[s]
+		if exists {
+			return tex
+		}
+	case FontMedium:
+		font = ui.fontMedium
+		tex, exists := ui.str2TexMedium[s]
+		if exists {
+			return tex
+		}
+	case FontLarge:
+		font = ui.fontLarge
+		tex, exists := ui.str2TexLarge[s]
+		if exists {
+			return tex
+		}
+	}
+	fontSurface, err := font.RenderUTF8Blended(s, color)
+	if err != nil {
+		panic(err)
+	}
+	tex, err := ui.renderer.CreateTextureFromSurface(fontSurface)
+	if err != nil {
+		panic(err)
+	}
+
+	switch size {
+	case FontSmall:
+		ui.str2TexSmall[s] = tex
+	case FontMedium:
+		ui.str2TexMedium[s] = tex
+	case FontLarge:
+		ui.str2TexLarge[s] = tex
+	}
+
+	return tex
 }
 
 // loadTextureIndex - Parse atlas-index.txt file to obtain coordinates for each defined tile
@@ -199,13 +282,15 @@ func (ui *ui) Draw(level *game.Level) {
 				dstRect := sdl.Rect{int32(x*32) + offsetX, int32(y*32) + offsetY, int32(32), int32(32)}
 
 				// debug map drawing
-				pos := game.Pos{x, y}
-				if level.Debug[pos] {
-					ui.textureAtlas.SetColorMod(128, 0, 0)
-				} else {
-					// no change to texture
-					ui.textureAtlas.SetColorMod(255, 255, 255)
-				}
+				/*
+					pos := game.Pos{x, y}
+					if level.Debug[pos] {
+						ui.textureAtlas.SetColorMod(128, 0, 0)
+					} else {
+						// no change to texture
+						ui.textureAtlas.SetColorMod(255, 255, 255)
+					}
+				*/
 
 				ui.renderer.Copy(ui.textureAtlas, &srcRect, &dstRect)
 			}
@@ -227,6 +312,16 @@ func (ui *ui) Draw(level *game.Level) {
 	// draws player
 	playerSrcRect := ui.textureIndex['@'][0]
 	ui.renderer.Copy(ui.textureAtlas, &playerSrcRect, &sdl.Rect{int32(level.Player.X)*32 + offsetX, int32(level.Player.Y)*32 + offsetY, 32, 32})
+
+	for i, event := range level.Events {
+		tex := ui.stringToTexture(event, sdl.Color{255, 0, 0, 0}, FontSmall)
+		_, _, w, h, err := tex.Query()
+		if err != nil {
+			panic(err)
+		}
+		ui.renderer.Copy(tex, nil, &sdl.Rect{0, int32(i * 64), w, h})
+	}
+
 	ui.renderer.Present()
 }
 

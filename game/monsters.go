@@ -60,7 +60,7 @@ func (m *Monster) Move(to Pos, level *Level) {
 		m.Pos = to
 	} else {
 		if m.Pos.IsNextToPlayer(level) {
-			Attack(&m.Character, &level.Player.Character)
+			Attack(&m.Character, &level.Player.Character, level)
 			// monster died
 			if m.Hitpoints <= 0 {
 				delete(level.Monsters, m.Pos)

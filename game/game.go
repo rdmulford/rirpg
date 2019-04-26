@@ -54,6 +54,7 @@ const (
 	Blank      Tile = 0
 	Tree       Tile = '^'
 	Water      Tile = '~'
+	Sand       Tile = '$'
 	Pending    Tile = -1
 )
 
@@ -86,13 +87,14 @@ type Level struct {
 	Player   *Player
 	Monsters map[Pos]*Monster
 	Trees    map[Pos]Tile
+	Events   []string // TODO determine how to remove events
 	Debug    map[Pos]bool
 }
 
-func Attack(c1, c2 *Character) {
+func Attack(c1, c2 *Character, level *Level) {
 	c1.ActionPoints -= 1
 	c2.Hitpoints -= c1.Strength
-	fmt.Printf("%s(%d) Attacks %s(%d)\n", c1.Name, c1.Hitpoints, c2.Name, c2.Hitpoints)
+	level.Events = append(level.Events, fmt.Sprintf("%s(%d) Attacks %s(%d)", c1.Name, c1.Hitpoints, c2.Name, c2.Hitpoints))
 	// strike back
 	/*
 		if c2.Hitpoints > 0 {
@@ -139,6 +141,7 @@ func loadLevelFromFile(filename string) *Level {
 	level.Map = make([][]Tile, len(levelLines))
 	level.Monsters = make(map[Pos]*Monster)
 	level.Trees = make(map[Pos]Tile)
+	level.Events = make([]string, 0)
 
 	for i := range level.Map {
 		level.Map[i] = make([]Tile, longestRow) // refactor to jagged array?
@@ -166,6 +169,8 @@ func loadLevelFromFile(filename string) *Level {
 				level.Trees[Pos{x, y}] = t
 			case '~':
 				t = Water
+			case '$':
+				t = Sand
 			case '@':
 				level.Player.Y = y
 				level.Player.X = x
@@ -228,14 +233,14 @@ func (player *Player) Move(to Pos, level *Level) {
 	if !exists {
 		player.Pos = to
 	} else {
-		Attack(&level.Player.Character, &monster.Character)
+		Attack(&level.Player.Character, &monster.Character, level)
 		// monster died
 		if monster.Hitpoints <= 0 {
 			delete(level.Monsters, monster.Pos)
 		}
 		// player died
 		if level.Player.Hitpoints <= 0 {
-			fmt.Println("Player died")
+			level.Events = append(level.Events, "Player died")
 			sdl.Quit()
 			os.Exit(1)
 		}
@@ -243,10 +248,10 @@ func (player *Player) Move(to Pos, level *Level) {
 
 	// Check if player is drowning
 	if level.Map[player.Pos.Y][player.Pos.X] == '~' {
-		fmt.Println(player.CurrentBreath)
+		level.Events = append(level.Events, fmt.Sprintf("Player has %d breath remaining", player.CurrentBreath))
 		player.CurrentBreath -= 1
 		if player.CurrentBreath < 0 {
-			fmt.Println("Player died")
+			level.Events = append(level.Events, "Player died")
 			sdl.Quit()
 			os.Exit(1)
 		}
@@ -371,6 +376,8 @@ func (level *Level) bfsFloor(start Pos) Tile {
 			return DirtFloor
 		case Grass:
 			return Grass
+		case Sand:
+			return Sand
 		default:
 		}
 		// new slice starting from second element to the end
