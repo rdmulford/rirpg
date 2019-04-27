@@ -46,10 +46,10 @@ func GenerateNewLevel(xSize, ySize int, seed int64) {
 	}
 
 	// place monsters
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 5; i++ {
 		placeTile(openTiles, genMap, game.Tile('R'))
 	}
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 5; i++ {
 		placeTile(openTiles, genMap, game.Tile('S'))
 	}
 

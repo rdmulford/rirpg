@@ -13,8 +13,6 @@ type Monster struct {
 }
 
 func NewRat(p Pos) *Monster {
-	// TODO figure out why this doesnt work
-	//return &Monster{Pos: p, Symbol: 'R', Name: "Rat", Hitpoints: 5, Strength: 5, Speed: 2.0, ActionPoints: 0.0}
 	monster := &Monster{}
 	monster.Pos = p
 	monster.Symbol = 'R'
@@ -29,7 +27,6 @@ func NewRat(p Pos) *Monster {
 }
 
 func NewSpider(p Pos) *Monster {
-	//return &Monster{p, 'S', "Spider", 10, 10, 1.0, 0.0}
 	monster := &Monster{}
 	monster.Pos = p
 	monster.Symbol = 'S'
@@ -46,9 +43,18 @@ func NewSpider(p Pos) *Monster {
 func (m *Monster) Update(level *Level) {
 	m.ActionPoints += m.Speed
 	path := level.astar(m.Pos, level.Player.Pos)
+	if len(path) == 0 {
+		m.Pass()
+		return
+	}
 	cost := math.Trunc((math.Min(m.ActionPoints, float64(len(path)-1))))
 	m.Move(path[int(cost)], level)
 	m.ActionPoints -= cost
+}
+
+// monster pass thier turn
+func (m *Monster) Pass() {
+	m.ActionPoints -= m.Speed
 }
 
 func (m *Monster) Move(to Pos, level *Level) {
@@ -64,6 +70,7 @@ func (m *Monster) Move(to Pos, level *Level) {
 			// monster died
 			if m.Hitpoints <= 0 {
 				delete(level.Monsters, m.Pos)
+				level.AddEvent(fmt.Sprintf("%s is dead", m.Name))
 			}
 			// player died
 			if level.Player.Hitpoints <= 0 {
@@ -79,6 +86,7 @@ func (m *Monster) Move(to Pos, level *Level) {
 		m.CurrentBreath -= 1
 		if m.CurrentBreath < 0 {
 			delete(level.Monsters, m.Pos)
+			level.AddEvent(fmt.Sprintf("%s is dead", m.Name))
 		}
 	} else {
 		m.CurrentBreath = m.MaxBreath

@@ -87,22 +87,24 @@ type Level struct {
 	Player   *Player
 	Monsters map[Pos]*Monster
 	Trees    map[Pos]Tile
-	Events   []string // TODO determine how to remove events
+	Events   []string // TODO pull event into own struct
+	EventPos int
 	Debug    map[Pos]bool
 }
 
 func Attack(c1, c2 *Character, level *Level) {
 	c1.ActionPoints -= 1
 	c2.Hitpoints -= c1.Strength
-	level.Events = append(level.Events, fmt.Sprintf("%s(%d) Attacks %s(%d)", c1.Name, c1.Hitpoints, c2.Name, c2.Hitpoints))
-	// strike back
-	/*
-		if c2.Hitpoints > 0 {
-			c2.ActionPoints -= 1
-			c1.Hitpoints -= c2.Strength
-			fmt.Printf("%s(%d) Attacks %s(%d)\n", c2.Name, c2.Hitpoints, c1.Name, c1.Hitpoints)
-		}
-	*/
+	level.AddEvent(fmt.Sprintf("%s(%d) Attacks %s(%d)", c1.Name, c1.Hitpoints, c2.Name, c2.Hitpoints))
+}
+
+func (level *Level) AddEvent(event string) {
+	// circular array
+	level.Events[level.EventPos] = event
+	level.EventPos++
+	if level.EventPos == len(level.Events) {
+		level.EventPos = 0
+	}
 }
 
 // loadLevelFromFile - reads in and parses a level file
@@ -130,7 +132,7 @@ func loadLevelFromFile(filename string) *Level {
 	// TODO where we should init player?
 	level.Player = &Player{}
 	level.Player.Strength = 20
-	level.Player.Hitpoints = 100
+	level.Player.Hitpoints = 1000
 	level.Player.Name = "Riley"
 	level.Player.Symbol = '@'
 	level.Player.Speed = 1.0
@@ -141,7 +143,7 @@ func loadLevelFromFile(filename string) *Level {
 	level.Map = make([][]Tile, len(levelLines))
 	level.Monsters = make(map[Pos]*Monster)
 	level.Trees = make(map[Pos]Tile)
-	level.Events = make([]string, 0)
+	level.Events = make([]string, 10) // 10 = number of events that fit on screen at a time
 
 	for i := range level.Map {
 		level.Map[i] = make([]Tile, longestRow) // refactor to jagged array?
@@ -235,12 +237,14 @@ func (player *Player) Move(to Pos, level *Level) {
 	} else {
 		Attack(&level.Player.Character, &monster.Character, level)
 		// monster died
+		// TODO probably dont want multiple checks of this?
 		if monster.Hitpoints <= 0 {
 			delete(level.Monsters, monster.Pos)
+			level.AddEvent(fmt.Sprintf("%s is dead", monster.Name))
 		}
 		// player died
 		if level.Player.Hitpoints <= 0 {
-			level.Events = append(level.Events, "Player died")
+			level.AddEvent("Player died")
 			sdl.Quit()
 			os.Exit(1)
 		}
@@ -248,10 +252,10 @@ func (player *Player) Move(to Pos, level *Level) {
 
 	// Check if player is drowning
 	if level.Map[player.Pos.Y][player.Pos.X] == '~' {
-		level.Events = append(level.Events, fmt.Sprintf("Player has %d breath remaining", player.CurrentBreath))
+		level.AddEvent(fmt.Sprintf("Player has %d breath remaining", player.CurrentBreath))
 		player.CurrentBreath -= 1
 		if player.CurrentBreath < 0 {
-			level.Events = append(level.Events, "Player died")
+			level.AddEvent("Player died")
 			sdl.Quit()
 			os.Exit(1)
 		}

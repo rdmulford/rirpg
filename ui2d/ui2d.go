@@ -34,6 +34,7 @@ type ui struct {
 	str2TexSmall      map[string]*sdl.Texture
 	str2TexMedium     map[string]*sdl.Texture
 	str2TexLarge      map[string]*sdl.Texture
+	eventBackground   *sdl.Texture
 }
 
 // init - initialize sdl
@@ -89,18 +90,21 @@ func NewUI(inputChan chan *game.Input, levelChan chan *game.Level) *ui {
 	ui.centerY = -1
 
 	// Set up fonts
-	ui.fontSmall, err = ttf.OpenFont("ui2d/assets/fonts/gothic.ttf", 24)
+	ui.fontSmall, err = ttf.OpenFont("ui2d/assets/fonts/gothic.ttf", 18)
 	if err != nil {
 		panic(err)
 	}
-	ui.fontMedium, err = ttf.OpenFont("ui2d/assets/fonts/gothic.ttf", 32)
+	ui.fontMedium, err = ttf.OpenFont("ui2d/assets/fonts/gothic.ttf", 24)
 	if err != nil {
 		panic(err)
 	}
-	ui.fontLarge, err = ttf.OpenFont("ui2d/assets/fonts/gothic.ttf", 48)
+	ui.fontLarge, err = ttf.OpenFont("ui2d/assets/fonts/gothic.ttf", 32)
 	if err != nil {
 		panic(err)
 	}
+
+	ui.eventBackground = ui.GetSinglePixelTex(sdl.Color{0, 0, 0, 128})
+	ui.eventBackground.SetBlendMode(sdl.BLENDMODE_BLEND)
 
 	return ui
 }
@@ -313,20 +317,60 @@ func (ui *ui) Draw(level *game.Level) {
 	playerSrcRect := ui.textureIndex['@'][0]
 	ui.renderer.Copy(ui.textureAtlas, &playerSrcRect, &sdl.Rect{int32(level.Player.X)*32 + offsetX, int32(level.Player.Y)*32 + offsetY, 32, 32})
 
-	for i, event := range level.Events {
-		tex := ui.stringToTexture(event, sdl.Color{255, 0, 0, 0}, FontSmall)
-		_, _, w, h, err := tex.Query()
-		if err != nil {
-			panic(err)
+	// draw text events
+	// TODO scroll better
+	textStart := int32(float64(ui.winHeight) * 0.75)
+	textWidth := int32(float64(ui.winWidth) * 0.25)
+	// draw text event background
+	ui.renderer.Copy(ui.eventBackground, nil, &sdl.Rect{0, textStart, textWidth, int32(ui.winHeight) - textStart})
+	i := level.EventPos
+	for {
+		event := level.Events[i]
+		if event != "" {
+			tex := ui.stringToTexture(event, sdl.Color{255, 0, 0, 0}, FontSmall)
+			_, _, w, h, err := tex.Query()
+			if err != nil {
+				panic(err)
+			}
+			ui.renderer.Copy(tex, nil, &sdl.Rect{0, int32(i*18) + textStart, w, h})
 		}
-		ui.renderer.Copy(tex, nil, &sdl.Rect{0, int32(i * 64), w, h})
+		i = (i + 1) % len(level.Events)
+		if i == level.EventPos {
+			break
+		}
 	}
 
 	ui.renderer.Present()
 }
 
+// key pressed
+func (ui *ui) keyDownOnce(key uint8) bool {
+	return ui.keyboardState[key] == 1 && ui.prevKeyboardState[key] == 0
+}
+
+// key press then released
+func (ui *ui) keyPressed(key uint8) bool {
+	return ui.keyboardState[key] == 0 && ui.prevKeyboardState[key] == 1
+}
+
+// utility function
+func (ui *ui) GetSinglePixelTex(color sdl.Color) *sdl.Texture {
+	tex, err := ui.renderer.CreateTexture(sdl.PIXELFORMAT_ABGR8888, sdl.TEXTUREACCESS_STATIC, 1, 1)
+	if err != nil {
+		panic(err)
+	}
+	pixels := make([]byte, 4)
+	pixels[0] = color.R
+	pixels[1] = color.G
+	pixels[2] = color.B
+	pixels[3] = color.A
+	tex.Update(nil, pixels, 4)
+	return tex
+}
+
 func (ui *ui) Run() {
 	for {
+		// TODO if we want multiple uis, need to seperate this into diffrent component on main thread
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 			// check event type and react
 			switch e := event.(type) {
@@ -339,6 +383,7 @@ func (ui *ui) Run() {
 			}
 		}
 
+		// TODO suspect quick keypress cause channel deadlock
 		select {
 		case newLevel, ok := <-ui.levelChan:
 			if ok {
@@ -350,16 +395,14 @@ func (ui *ui) Run() {
 		// TODO made a function to ask "has a key been pressed"
 		if sdl.GetKeyboardFocus() == ui.window || sdl.GetMouseFocus() == ui.window {
 			var input game.Input
-			if ui.keyboardState[sdl.SCANCODE_UP] == 1 && ui.prevKeyboardState[sdl.SCANCODE_UP] == 0 {
+			if ui.keyDownOnce(sdl.SCANCODE_UP) {
 				input.Typ = game.Up
-			} else if ui.keyboardState[sdl.SCANCODE_DOWN] == 1 && ui.prevKeyboardState[sdl.SCANCODE_DOWN] == 0 {
+			} else if ui.keyDownOnce(sdl.SCANCODE_DOWN) {
 				input.Typ = game.Down
-			} else if ui.keyboardState[sdl.SCANCODE_LEFT] == 1 && ui.prevKeyboardState[sdl.SCANCODE_LEFT] == 0 {
+			} else if ui.keyDownOnce(sdl.SCANCODE_LEFT) {
 				input.Typ = game.Left
-			} else if ui.keyboardState[sdl.SCANCODE_RIGHT] == 1 && ui.prevKeyboardState[sdl.SCANCODE_RIGHT] == 0 {
+			} else if ui.keyDownOnce(sdl.SCANCODE_RIGHT) {
 				input.Typ = game.Right
-			} else if ui.keyboardState[sdl.SCANCODE_S] == 1 && ui.prevKeyboardState[sdl.SCANCODE_S] == 0 {
-				input.Typ = game.Search
 			}
 
 			for i, v := range ui.keyboardState {
