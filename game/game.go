@@ -46,7 +46,7 @@ type Input struct {
 type Tile struct {
 	Symbol  rune
 	Visible bool
-	//visited bool
+	Seen    bool
 }
 
 const (
@@ -152,6 +152,7 @@ func (level *Level) bresenhamVisibility(start Pos, end Pos) {
 				pos = Pos{x, y}
 			}
 			level.Map[pos.Y][pos.X].Visible = true
+			level.Map[pos.Y][pos.X].Seen = true
 			if !canSeeThrough(level, pos) {
 				return
 			}
@@ -171,6 +172,7 @@ func (level *Level) bresenhamVisibility(start Pos, end Pos) {
 				pos = Pos{x, y}
 			}
 			level.Map[pos.Y][pos.X].Visible = true
+			level.Map[pos.Y][pos.X].Seen = true
 			if !canSeeThrough(level, pos) {
 				return
 			}
@@ -493,11 +495,11 @@ func (level *Level) bfsFloor(start Pos) Tile {
 		currentTile := level.Map[current.Y][current.X]
 		switch currentTile.Symbol {
 		case DirtFloor:
-			return Tile{DirtFloor, false}
+			return Tile{DirtFloor, false, false}
 		case Grass:
-			return Tile{Grass, false}
+			return Tile{Grass, false, false}
 		case Sand:
-			return Tile{Sand, false}
+			return Tile{Sand, false, false}
 		default:
 		}
 		// new slice starting from second element to the end
@@ -510,7 +512,7 @@ func (level *Level) bfsFloor(start Pos) Tile {
 			}
 		}
 	}
-	return Tile{DirtFloor, false}
+	return Tile{DirtFloor, false, false}
 }
 
 // astar - classic astar implementation

@@ -284,15 +284,16 @@ func (ui *ui) Draw(level *game.Level) {
 			if tile.Symbol != game.Blank {
 				srcRects := ui.textureIndex[drawnTile]
 				srcRect := srcRects[ui.r.Intn(len(srcRects))]
-				if tile.Visible {
+				if tile.Visible || tile.Seen {
 					dstRect := sdl.Rect{int32(x*32) + offsetX, int32(y*32) + offsetY, int32(32), int32(32)}
 
 					// debug map drawing
 					pos := game.Pos{x, y}
 					if level.Debug[pos] {
 						ui.textureAtlas.SetColorMod(128, 0, 0)
+					} else if tile.Seen && !tile.Visible {
+						ui.textureAtlas.SetColorMod(128, 128, 128)
 					} else {
-						// no change to texture
 						ui.textureAtlas.SetColorMod(255, 255, 255)
 					}
 
@@ -302,12 +303,18 @@ func (ui *ui) Draw(level *game.Level) {
 		}
 	}
 
+	// TODO clean up this logic
+	ui.textureAtlas.SetColorMod(255, 255, 255)
 	// draw trees
 	for pos, tree := range level.Trees {
-		if level.Map[pos.Y][pos.X].Visible {
+		if level.Map[pos.Y][pos.X].Seen && !level.Map[pos.Y][pos.X].Visible {
+			ui.textureAtlas.SetColorMod(128, 128, 128)
+		}
+		if level.Map[pos.Y][pos.X].Visible || level.Map[pos.Y][pos.X].Seen {
 			treeSrcRect := ui.textureIndex[tree.Symbol][0]
 			ui.renderer.Copy(ui.textureAtlas, &treeSrcRect, &sdl.Rect{int32(pos.X)*32 + offsetX, int32(pos.Y)*32 + offsetY, 32, 32})
 		}
+		ui.textureAtlas.SetColorMod(255, 255, 255)
 	}
 
 	// draw monsters
