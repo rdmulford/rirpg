@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 
+	"github.com/rdmulford/rirpg/worldgen"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
@@ -22,7 +23,11 @@ func NewGame(numWindows int, levelPath string) *Game {
 		levelChans[i] = make(chan *Level)
 	}
 	inputChan := make(chan *Input)
-	return &Game{levelChans, inputChan, loadLevelFromFile(levelPath)}
+	if levelPath != "" {
+		return &Game{levelChans, inputChan, loadLevelFromFile(levelPath)}
+	} else {
+		return &Game{levelChans, inputChan, loadRandGenLevel()}
+	}
 }
 
 const (
@@ -221,6 +226,89 @@ func bresenham(start Pos, end Pos) []Pos {
 	return result
 }
 
+func loadRandGenLevel() *Level {
+	xSize := 100
+	ySize := 100
+	genMap := worldgen.GenerateNewLevel(xSize, ySize, 100)
+
+	level := &Level{}
+	// TODO where we should init player?
+	level.Player = &Player{}
+	level.Player.Strength = 20
+	level.Player.Hitpoints = 1000
+	level.Player.Name = "Riley"
+	level.Player.Symbol = '@'
+	level.Player.Speed = 1.0
+	level.Player.ActionPoints = 0
+	level.Player.MaxBreath = 10
+	level.Player.CurrentBreath = level.Player.MaxBreath
+	level.Player.SightRange = 20
+
+	level.Map = make([][]Tile, ySize)
+	level.Monsters = make(map[Pos]*Monster)
+	level.Trees = make(map[Pos]Tile)
+	level.Events = make([]string, 10) // 10 = number of events that fit on screen at a time
+	level.Debug = make(map[Pos]bool)
+
+	for i := range level.Map {
+		level.Map[i] = make([]Tile, xSize) // refactor to jagged array?
+	}
+
+	for y := 0; y < len(level.Map); y++ {
+		line := genMap[y]
+		for x, c := range line {
+			var t Tile
+			switch c {
+			case ' ', '\t', '\n', '\r':
+				t.Symbol = Blank
+			case '#':
+				t.Symbol = StoneWall
+			case '|':
+				t.Symbol = ClosedDoor
+			case '/':
+				t.Symbol = OpenDoor
+			case '.':
+				t.Symbol = DirtFloor
+			case ',':
+				t.Symbol = Grass
+			case '^':
+				t.Symbol = Tree
+				level.Trees[Pos{x, y}] = t
+			case '~':
+				t.Symbol = Water
+			case '$':
+				t.Symbol = Sand
+			case '@':
+				level.Player.Y = y
+				level.Player.X = x
+				t.Symbol = Pending
+			case 'R':
+				level.Monsters[Pos{x, y}] = NewRat(Pos{x, y})
+				t.Symbol = Pending
+			case 'S':
+				level.Monsters[Pos{x, y}] = NewSpider(Pos{x, y})
+				t.Symbol = Pending
+			default:
+				panic("Invalid Character in Map")
+			}
+			level.Map[y][x] = t
+		}
+	}
+
+	// Handle pending tiles by setting floor to closest floor type found (or dirt for default)
+	for y, row := range level.Map {
+		for x, tile := range row {
+			if tile.Symbol == Pending {
+				level.Map[y][x] = level.bfsFloor(Pos{x, y})
+			}
+		}
+	}
+
+	level.lineOfSight()
+
+	return level
+}
+
 // loadLevelFromFile - reads in and parses a level file
 // properly associates each ascii character with a tile (not texture itself)
 func loadLevelFromFile(filename string) *Level {
@@ -253,7 +341,7 @@ func loadLevelFromFile(filename string) *Level {
 	level.Player.ActionPoints = 0
 	level.Player.MaxBreath = 10
 	level.Player.CurrentBreath = level.Player.MaxBreath
-	level.Player.SightRange = 10
+	level.Player.SightRange = 20
 
 	level.Map = make([][]Tile, len(levelLines))
 	level.Monsters = make(map[Pos]*Monster)

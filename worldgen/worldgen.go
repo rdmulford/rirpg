@@ -5,17 +5,18 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-
-	"github.com/rdmulford/rirpg/game"
 )
 
-// utilize perlin noise to generate new level file at game/maps/level1.map
-func GenerateNewLevel(xSize, ySize int, seed int64) {
+type Pos struct {
+	X, Y int
+}
+
+func GenerateNewLevel(xSize, ySize int, seed int64) [][]rune {
 	genMap := make([][]rune, ySize)
 	for i := range genMap {
 		genMap[i] = make([]rune, xSize)
 	}
-	openTiles := make([]game.Pos, 0)
+	openTiles := make([]Pos, 0)
 
 	// define world tiles base don perlin noise
 	p := NewPerlin(2, 2, 3, seed)
@@ -32,10 +33,60 @@ func GenerateNewLevel(xSize, ySize int, seed int64) {
 				genMap[x][y] = rune('$')
 			} else if val >= -0.3 && val < 0.3 {
 				genMap[x][y] = rune(',')
-				openTiles = append(openTiles, game.Pos{x, y})
+				openTiles = append(openTiles, Pos{x, y})
 			} else if val >= 0.3 {
 				genMap[x][y] = rune('.')
-				openTiles = append(openTiles, game.Pos{x, y})
+				openTiles = append(openTiles, Pos{x, y})
+			}
+		}
+	}
+
+	// place trees
+	for i := 0; i < 200; i++ {
+		placeTile(openTiles, genMap, rune('^'))
+	}
+
+	// place monsters
+	for i := 0; i < 5; i++ {
+		placeTile(openTiles, genMap, rune('R'))
+	}
+	for i := 0; i < 5; i++ {
+		placeTile(openTiles, genMap, rune('S'))
+	}
+
+	// place player
+	placeTile(openTiles, genMap, rune('@'))
+
+	return genMap
+}
+
+// utilize perlin noise to generate new level file at game/maps/level1.map
+func GenerateNewLevelToFile(xSize, ySize int, seed int64) {
+	genMap := make([][]rune, ySize)
+	for i := range genMap {
+		genMap[i] = make([]rune, xSize)
+	}
+	openTiles := make([]Pos, 0)
+
+	// define world tiles base don perlin noise
+	p := NewPerlin(2, 2, 3, seed)
+	for y := 0; y < ySize; y++ {
+		for x := 0; x < xSize; x++ {
+			val := p.Noise2D(float64(x)/10, float64(y)/10)
+			if x == 0 || x == xSize-1 || y == 0 || y == ySize-1 {
+				genMap[x][y] = rune('#')
+				continue
+			}
+			if val < -0.4 {
+				genMap[x][y] = rune('~')
+			} else if val >= -0.4 && val < -0.3 {
+				genMap[x][y] = rune('$')
+			} else if val >= -0.3 && val < 0.3 {
+				genMap[x][y] = rune(',')
+				openTiles = append(openTiles, Pos{x, y})
+			} else if val >= 0.3 {
+				genMap[x][y] = rune('.')
+				openTiles = append(openTiles, Pos{x, y})
 			}
 		}
 	}
@@ -85,14 +136,14 @@ func GenerateNewLevel(xSize, ySize int, seed int64) {
 }
 
 // place a new tile on an open tile
-func placeTile(openTiles []game.Pos, genMap [][]rune, tile rune) {
+func placeTile(openTiles []Pos, genMap [][]rune, tile rune) {
 	index := rand.Intn(len(openTiles))
 	mPos := openTiles[index]
 	remove(openTiles, index)
 	genMap[mPos.X][mPos.Y] = tile
 }
 
-func remove(s []game.Pos, i int) []game.Pos {
+func remove(s []Pos, i int) []Pos {
 	s[i] = s[len(s)-1]
 	return s[:len(s)-1]
 }
