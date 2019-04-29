@@ -20,7 +20,7 @@ type ui struct {
 	renderer          *sdl.Renderer
 	window            *sdl.Window
 	textureAtlas      *sdl.Texture
-	textureIndex      map[game.Tile][]sdl.Rect
+	textureIndex      map[rune][]sdl.Rect // maps character from map to sprite sheet
 	prevKeyboardState []uint8
 	keyboardState     []uint8
 	centerX           int
@@ -90,7 +90,7 @@ func NewUI(inputChan chan *game.Input, levelChan chan *game.Level) *ui {
 	ui.centerY = -1
 
 	// Set up fonts
-	ui.fontSmall, err = ttf.OpenFont("ui2d/assets/fonts/gothic.ttf", 18)
+	ui.fontSmall, err = ttf.OpenFont("ui2d/assets/fonts/gothic.ttf", int(float64(ui.winWidth)*0.015))
 	if err != nil {
 		panic(err)
 	}
@@ -164,7 +164,7 @@ func (ui *ui) stringToTexture(s string, color sdl.Color, size FontSize) *sdl.Tex
 
 // loadTextureIndex - Parse atlas-index.txt file to obtain coordinates for each defined tile
 func (ui *ui) loadTextureIndex() {
-	ui.textureIndex = make(map[game.Tile][]sdl.Rect)
+	ui.textureIndex = make(map[rune][]sdl.Rect)
 	infile, err := os.Open("ui2d/assets/tiles/atlas-index.txt")
 	if err != nil {
 		panic(err)
@@ -173,7 +173,7 @@ func (ui *ui) loadTextureIndex() {
 	for scanner.Scan() {
 		line := scanner.Text()
 		line = strings.TrimSpace(line)
-		tileRune := game.Tile(line[0])
+		tileRune := rune(line[0])
 		xy := line[1:]
 		splitXYC := strings.Split(xy, ",")
 		x, err := strconv.ParseInt(strings.TrimSpace(splitXYC[0]), 10, 64)
@@ -275,18 +275,19 @@ func (ui *ui) Draw(level *game.Level) {
 	// draws all floor tiles
 	for y, row := range level.Map {
 		for x, tile := range row {
-			if tile != game.Blank {
-				// draw grass under trees
-				// TODO refactor into layers?
-				if tile == game.Tree {
-					tile = game.Grass
-				}
-				srcRects := ui.textureIndex[tile]
+			// draw grass under trees
+			// TODO refactor how this works in general
+			drawnTile := tile.Symbol
+			if tile.Symbol == game.Tree {
+				drawnTile = game.Grass
+			}
+			if tile.Symbol != game.Blank {
+				srcRects := ui.textureIndex[drawnTile]
 				srcRect := srcRects[ui.r.Intn(len(srcRects))]
-				dstRect := sdl.Rect{int32(x*32) + offsetX, int32(y*32) + offsetY, int32(32), int32(32)}
+				if tile.Visible {
+					dstRect := sdl.Rect{int32(x*32) + offsetX, int32(y*32) + offsetY, int32(32), int32(32)}
 
-				// debug map drawing
-				/*
+					// debug map drawing
 					pos := game.Pos{x, y}
 					if level.Debug[pos] {
 						ui.textureAtlas.SetColorMod(128, 0, 0)
@@ -294,23 +295,27 @@ func (ui *ui) Draw(level *game.Level) {
 						// no change to texture
 						ui.textureAtlas.SetColorMod(255, 255, 255)
 					}
-				*/
 
-				ui.renderer.Copy(ui.textureAtlas, &srcRect, &dstRect)
+					ui.renderer.Copy(ui.textureAtlas, &srcRect, &dstRect)
+				}
 			}
 		}
 	}
 
 	// draw trees
 	for pos, tree := range level.Trees {
-		treeSrcRect := ui.textureIndex[tree][0]
-		ui.renderer.Copy(ui.textureAtlas, &treeSrcRect, &sdl.Rect{int32(pos.X)*32 + offsetX, int32(pos.Y)*32 + offsetY, 32, 32})
+		if level.Map[pos.Y][pos.X].Visible {
+			treeSrcRect := ui.textureIndex[tree.Symbol][0]
+			ui.renderer.Copy(ui.textureAtlas, &treeSrcRect, &sdl.Rect{int32(pos.X)*32 + offsetX, int32(pos.Y)*32 + offsetY, 32, 32})
+		}
 	}
 
 	// draw monsters
 	for pos, monster := range level.Monsters {
-		monsterSrcRect := ui.textureIndex[game.Tile(monster.Symbol)][0]
-		ui.renderer.Copy(ui.textureAtlas, &monsterSrcRect, &sdl.Rect{int32(pos.X)*32 + offsetX, int32(pos.Y)*32 + offsetY, 32, 32})
+		if level.Map[pos.Y][pos.X].Visible {
+			monsterSrcRect := ui.textureIndex[monster.Symbol][0]
+			ui.renderer.Copy(ui.textureAtlas, &monsterSrcRect, &sdl.Rect{int32(pos.X)*32 + offsetX, int32(pos.Y)*32 + offsetY, 32, 32})
+		}
 	}
 
 	// draws player
@@ -319,11 +324,13 @@ func (ui *ui) Draw(level *game.Level) {
 
 	// draw text events
 	// TODO scroll better
-	textStart := int32(float64(ui.winHeight) * 0.75)
+	textStart := int32(float64(ui.winHeight) * 0.68)
 	textWidth := int32(float64(ui.winWidth) * 0.25)
 	// draw text event background
 	ui.renderer.Copy(ui.eventBackground, nil, &sdl.Rect{0, textStart, textWidth, int32(ui.winHeight) - textStart})
 	i := level.EventPos
+	count := 0
+	_, fontSizeY, _ := ui.fontSmall.SizeUTF8("A")
 	for {
 		event := level.Events[i]
 		if event != "" {
@@ -332,9 +339,10 @@ func (ui *ui) Draw(level *game.Level) {
 			if err != nil {
 				panic(err)
 			}
-			ui.renderer.Copy(tex, nil, &sdl.Rect{0, int32(i*18) + textStart, w, h})
+			ui.renderer.Copy(tex, nil, &sdl.Rect{5, int32(count*fontSizeY) + textStart, w, h})
 		}
 		i = (i + 1) % len(level.Events)
+		count++
 		if i == level.EventPos {
 			break
 		}

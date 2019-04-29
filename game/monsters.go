@@ -23,6 +23,7 @@ func NewRat(p Pos) *Monster {
 	monster.ActionPoints = 0.0
 	monster.MaxBreath = 6
 	monster.CurrentBreath = monster.MaxBreath
+	monster.SightRange = 10
 	return monster
 }
 
@@ -37,6 +38,7 @@ func NewSpider(p Pos) *Monster {
 	monster.ActionPoints = 0.0
 	monster.MaxBreath = 3
 	monster.CurrentBreath = monster.MaxBreath
+	monster.SightRange = 10
 	return monster
 }
 
@@ -66,7 +68,7 @@ func (m *Monster) Move(to Pos, level *Level) {
 		m.Pos = to
 	} else {
 		if m.Pos.IsNextToPlayer(level) {
-			Attack(&m.Character, &level.Player.Character, level)
+			level.Attack(&m.Character, &level.Player.Character)
 			// monster died
 			if m.Hitpoints <= 0 {
 				delete(level.Monsters, m.Pos)
@@ -82,7 +84,7 @@ func (m *Monster) Move(to Pos, level *Level) {
 	}
 
 	// check if monster is drowning
-	if level.Map[m.Pos.Y][m.Pos.X] == '~' {
+	if level.Map[m.Pos.Y][m.Pos.X].Symbol == '~' {
 		m.CurrentBreath -= 1
 		if m.CurrentBreath < 0 {
 			delete(level.Monsters, m.Pos)

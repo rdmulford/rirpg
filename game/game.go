@@ -43,19 +43,23 @@ type Input struct {
 	LevelChannel chan *Level
 }
 
-type Tile rune
+type Tile struct {
+	Symbol  rune
+	Visible bool
+	//visited bool
+}
 
 const (
-	StoneWall  Tile = '#'
-	DirtFloor  Tile = '.'
-	Grass      Tile = ','
-	ClosedDoor Tile = '|'
-	OpenDoor   Tile = '/'
-	Blank      Tile = 0
-	Tree       Tile = '^'
-	Water      Tile = '~'
-	Sand       Tile = '$'
-	Pending    Tile = -1
+	StoneWall  rune = '#'
+	DirtFloor  rune = '.'
+	Grass      rune = ','
+	ClosedDoor rune = '|'
+	OpenDoor   rune = '/'
+	Blank      rune = 0
+	Tree       rune = '^'
+	Water      rune = '~'
+	Sand       rune = '$'
+	Pending    rune = -1
 )
 
 type Pos struct {
@@ -76,6 +80,7 @@ type Character struct {
 	MaxBreath     int
 	CurrentBreath int
 	ActionPoints  float64
+	SightRange    int
 }
 
 type Player struct {
@@ -92,7 +97,7 @@ type Level struct {
 	Debug    map[Pos]bool
 }
 
-func Attack(c1, c2 *Character, level *Level) {
+func (level *Level) Attack(c1, c2 *Character) {
 	c1.ActionPoints -= 1
 	c2.Hitpoints -= c1.Strength
 	level.AddEvent(fmt.Sprintf("%s(%d) Attacks %s(%d)", c1.Name, c1.Hitpoints, c2.Name, c2.Hitpoints))
@@ -105,6 +110,113 @@ func (level *Level) AddEvent(event string) {
 	if level.EventPos == len(level.Events) {
 		level.EventPos = 0
 	}
+}
+
+// iterate over square the size of player sight range
+func (level *Level) lineOfSight() {
+	pos := level.Player.Pos
+	dist := level.Player.SightRange
+	for y := pos.Y - dist; y <= pos.Y+dist; y++ {
+		for x := pos.X - dist; x <= pos.X+dist; x++ {
+			xDelta := pos.X - x
+			yDelta := pos.Y - y
+			d := math.Sqrt(float64(xDelta*xDelta + yDelta*yDelta))
+			if d <= float64(dist) {
+				level.bresenhamVisibility(pos, Pos{x, y})
+			}
+		}
+	}
+}
+
+// bresenham adapted specifically to calculate FOW
+func (level *Level) bresenhamVisibility(start Pos, end Pos) {
+	steep := math.Abs(float64(end.Y-start.Y)) > math.Abs(float64(end.X-start.X))
+	if steep {
+		start.X, start.Y = start.Y, start.X
+		end.X, end.Y = end.Y, end.X
+	}
+	deltaY := int(math.Abs(float64(end.Y - start.Y)))
+	err := 0
+	y := start.Y
+	ystep := 1
+	if start.Y >= end.Y {
+		ystep = -1
+	}
+	if start.X > end.X {
+		deltaX := start.X - end.X
+		for x := start.X; x > end.X; x-- {
+			var pos Pos
+			if steep {
+				pos = Pos{y, x}
+			} else {
+				pos = Pos{x, y}
+			}
+			level.Map[pos.Y][pos.X].Visible = true
+			if !canSeeThrough(level, pos) {
+				return
+			}
+			err += deltaY
+			if 2*err >= deltaX {
+				y += ystep
+				err -= deltaX
+			}
+		}
+	} else {
+		deltaX := end.X - start.X
+		for x := start.X; x < end.X; x++ {
+			var pos Pos
+			if steep {
+				pos = Pos{y, x}
+			} else {
+				pos = Pos{x, y}
+			}
+			level.Map[pos.Y][pos.X].Visible = true
+			if !canSeeThrough(level, pos) {
+				return
+			}
+			err += deltaY
+			if 2*err >= deltaX {
+				y += ystep
+				err -= deltaX
+			}
+		}
+	}
+}
+
+// general purpose bresenham function (might delete later idk)
+func bresenham(start Pos, end Pos) []Pos {
+	result := make([]Pos, 0)
+	steep := math.Abs(float64(end.Y-start.Y)) > math.Abs(float64(end.X-start.X))
+	if steep {
+		start.X, start.Y = start.Y, start.X
+		end.X, end.Y = end.Y, end.X
+	}
+	if start.X > end.X {
+		start.X, end.X = end.X, start.X
+		start.Y, end.Y = end.Y, start.Y
+	}
+
+	deltaX := end.X - start.X
+	deltaY := int(math.Abs(float64(end.Y - start.Y)))
+	err := 0
+	y := start.Y
+	ystep := 1
+	if start.Y >= end.Y {
+		ystep = -1
+	}
+	for x := start.X; x < end.X; x++ {
+		if steep {
+			result = append(result, Pos{y, x})
+		} else {
+			result = append(result, Pos{x, y})
+		}
+		err += deltaY
+		if 2*err >= deltaX {
+			y += ystep
+			err -= deltaX
+		}
+	}
+	return result
 }
 
 // loadLevelFromFile - reads in and parses a level file
@@ -127,8 +239,8 @@ func loadLevelFromFile(filename string) *Level {
 		}
 		index++
 	}
-	level := &Level{}
 
+	level := &Level{}
 	// TODO where we should init player?
 	level.Player = &Player{}
 	level.Player.Strength = 20
@@ -139,11 +251,13 @@ func loadLevelFromFile(filename string) *Level {
 	level.Player.ActionPoints = 0
 	level.Player.MaxBreath = 10
 	level.Player.CurrentBreath = level.Player.MaxBreath
+	level.Player.SightRange = 10
 
 	level.Map = make([][]Tile, len(levelLines))
 	level.Monsters = make(map[Pos]*Monster)
 	level.Trees = make(map[Pos]Tile)
 	level.Events = make([]string, 10) // 10 = number of events that fit on screen at a time
+	level.Debug = make(map[Pos]bool)
 
 	for i := range level.Map {
 		level.Map[i] = make([]Tile, longestRow) // refactor to jagged array?
@@ -155,34 +269,34 @@ func loadLevelFromFile(filename string) *Level {
 			var t Tile
 			switch c {
 			case ' ', '\t', '\n', '\r':
-				t = Blank
+				t.Symbol = Blank
 			case '#':
-				t = StoneWall
+				t.Symbol = StoneWall
 			case '|':
-				t = ClosedDoor
+				t.Symbol = ClosedDoor
 			case '/':
-				t = OpenDoor
+				t.Symbol = OpenDoor
 			case '.':
-				t = DirtFloor
+				t.Symbol = DirtFloor
 			case ',':
-				t = Grass
+				t.Symbol = Grass
 			case '^':
-				t = Tree
+				t.Symbol = Tree
 				level.Trees[Pos{x, y}] = t
 			case '~':
-				t = Water
+				t.Symbol = Water
 			case '$':
-				t = Sand
+				t.Symbol = Sand
 			case '@':
 				level.Player.Y = y
 				level.Player.X = x
-				t = Pending
+				t.Symbol = Pending
 			case 'R':
 				level.Monsters[Pos{x, y}] = NewRat(Pos{x, y})
-				t = Pending
+				t.Symbol = Pending
 			case 'S':
 				level.Monsters[Pos{x, y}] = NewSpider(Pos{x, y})
-				t = Pending
+				t.Symbol = Pending
 			default:
 				panic("Invalid Character in Map")
 			}
@@ -193,11 +307,13 @@ func loadLevelFromFile(filename string) *Level {
 	// Handle pending tiles by setting floor to closest floor type found (or dirt for default)
 	for y, row := range level.Map {
 		for x, tile := range row {
-			if tile == Pending {
+			if tile.Symbol == Pending {
 				level.Map[y][x] = level.bfsFloor(Pos{x, y})
 			}
 		}
 	}
+
+	level.lineOfSight()
 
 	return level
 }
@@ -212,7 +328,20 @@ func inRange(level *Level, pos Pos) bool {
 func canWalk(level *Level, pos Pos) bool {
 	if inRange(level, pos) {
 		t := level.Map[pos.Y][pos.X]
-		switch t {
+		switch t.Symbol {
+		case StoneWall, ClosedDoor, Tree, Blank:
+			return false
+		}
+		_, exists := level.Monsters[pos]
+		return !exists
+	}
+	return false
+}
+
+func canSeeThrough(level *Level, pos Pos) bool {
+	if inRange(level, pos) {
+		t := level.Map[pos.Y][pos.X]
+		switch t.Symbol {
 		case StoneWall, ClosedDoor, Tree, Blank:
 			return false
 		default:
@@ -225,43 +354,53 @@ func canWalk(level *Level, pos Pos) bool {
 // checkDoor - open a closed door
 func checkDoor(level *Level, pos Pos) {
 	t := level.Map[pos.Y][pos.X]
-	if t == ClosedDoor {
-		level.Map[pos.Y][pos.X] = OpenDoor
+	if t.Symbol == ClosedDoor {
+		level.Map[pos.Y][pos.X].Symbol = OpenDoor
+		level.lineOfSight()
 	}
 }
 
-func (player *Player) Move(to Pos, level *Level) {
-	monster, exists := level.Monsters[to]
-	if !exists {
-		player.Pos = to
-	} else {
-		Attack(&level.Player.Character, &monster.Character, level)
-		// monster died
-		// TODO probably dont want multiple checks of this?
+func (level *Level) resolveMovement(pos Pos) {
+	monster, exists := level.Monsters[pos]
+	if exists {
+		level.Attack(&level.Player.Character, &monster.Character)
 		if monster.Hitpoints <= 0 {
 			delete(level.Monsters, monster.Pos)
 			level.AddEvent(fmt.Sprintf("%s is dead", monster.Name))
 		}
-		// player died
 		if level.Player.Hitpoints <= 0 {
 			level.AddEvent("Player died")
 			sdl.Quit()
 			os.Exit(1)
 		}
+	} else if canWalk(level, pos) {
+		level.Player.Move(pos, level)
+	} else {
+		checkDoor(level, pos)
 	}
 
 	// Check if player is drowning
-	if level.Map[player.Pos.Y][player.Pos.X] == '~' {
-		level.AddEvent(fmt.Sprintf("Player has %d breath remaining", player.CurrentBreath))
-		player.CurrentBreath -= 1
-		if player.CurrentBreath < 0 {
+	if level.Map[level.Player.Pos.Y][level.Player.Pos.X].Symbol == '~' {
+		level.AddEvent(fmt.Sprintf("Player has %d breath remaining", level.Player.CurrentBreath))
+		level.Player.CurrentBreath -= 1
+		if level.Player.CurrentBreath < 0 {
 			level.AddEvent("Player died")
 			sdl.Quit()
 			os.Exit(1)
 		}
 	} else {
-		player.CurrentBreath = player.MaxBreath
+		level.Player.CurrentBreath = level.Player.MaxBreath
 	}
+}
+
+func (player *Player) Move(to Pos, level *Level) {
+	player.Pos = to
+	for y, row := range level.Map {
+		for x, _ := range row {
+			level.Map[y][x].Visible = false
+		}
+	}
+	level.lineOfSight()
 }
 
 // handleInput - takes an input and performs a game action
@@ -269,35 +408,13 @@ func (game *Game) handleInput(input *Input) {
 	level := game.Level
 	switch input.Typ {
 	case Up:
-		newPos := Pos{level.Player.X, level.Player.Y - 1}
-		if canWalk(level, newPos) {
-			level.Player.Move(newPos, level)
-		} else {
-			checkDoor(level, newPos)
-		}
+		level.resolveMovement(Pos{level.Player.X, level.Player.Y - 1})
 	case Down:
-		newPos := Pos{level.Player.X, level.Player.Y + 1}
-		if canWalk(level, newPos) {
-			level.Player.Move(newPos, level)
-		} else {
-			checkDoor(level, newPos)
-		}
+		level.resolveMovement(Pos{level.Player.X, level.Player.Y + 1})
 	case Left:
-		newPos := Pos{level.Player.X - 1, level.Player.Y}
-		if canWalk(level, newPos) {
-			level.Player.Move(newPos, level)
-		} else {
-			checkDoor(level, newPos)
-		}
+		level.resolveMovement(Pos{level.Player.X - 1, level.Player.Y})
 	case Right:
-		newPos := Pos{level.Player.X + 1, level.Player.Y}
-		if canWalk(level, newPos) {
-			level.Player.Move(newPos, level)
-		} else {
-			checkDoor(level, newPos)
-		}
-	case Search:
-		level.astar(level.Player.Pos, Pos{3, 2})
+		level.resolveMovement(Pos{level.Player.X + 1, level.Player.Y})
 	case CloseWindow:
 		close(input.LevelChannel)
 		chanIndex := 0
@@ -370,18 +487,17 @@ func (level *Level) bfsFloor(start Pos) Tile {
 	frontier = append(frontier, start)
 	visited := make(map[Pos]bool)
 	visited[start] = true
-	level.Debug = visited
 
 	for len(frontier) > 0 {
 		current := frontier[0]
 		currentTile := level.Map[current.Y][current.X]
-		switch currentTile {
+		switch currentTile.Symbol {
 		case DirtFloor:
-			return DirtFloor
+			return Tile{DirtFloor, false}
 		case Grass:
-			return Grass
+			return Tile{Grass, false}
 		case Sand:
-			return Sand
+			return Tile{Sand, false}
 		default:
 		}
 		// new slice starting from second element to the end
@@ -394,7 +510,7 @@ func (level *Level) bfsFloor(start Pos) Tile {
 			}
 		}
 	}
-	return DirtFloor
+	return Tile{DirtFloor, false}
 }
 
 // astar - classic astar implementation
@@ -453,6 +569,7 @@ func (game *Game) Run() {
 		if input.Typ == QuitGame {
 			return
 		}
+
 		game.handleInput(input)
 
 		// move monsters towards player
